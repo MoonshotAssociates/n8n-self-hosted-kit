@@ -1,0 +1,221 @@
+networks:
+  n8n-network:
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /storage/postgres_data
+      o: bind
+  n8n_storage:
+    driver: local
+    driver_opts:
+      type: none
+      device: /storage/n8n_storage
+      o: bind
+  n8n_backup:
+    driver: local
+    driver_opts:
+      type: none
+      device: /storage/n8n_backup
+      o: bind
+  n8n_shared:
+    driver: local
+    driver_opts:
+      type: none
+      device: /storage/n8n_shared
+      o: bind      
+  letsencrypt_storage:
+    driver: local
+    driver_opts:
+      type: none
+      device: /storage/letsencrypt
+      o: bind
+  letsencrypt_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /storage/letsencrypt/data
+      o: bind
+  nginx_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /storage/nginx_data
+      o: bind      
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: n8n_postgres
+    networks:
+      - n8n-network
+    restart: always
+    environment:
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+      - POSTGRES_HOST_AUTH_METHOD
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nginx:
+    image: 'jc21/nginx-proxy-manager:latest'
+    restart: unless-stopped
+    networks:
+      - n8n-network
+    ports:
+      - 80:80
+      - 81:81
+      - 443:443
+    volumes:
+      - letsencrypt_data:/data
+      - letsencrypt_storage:/etc/letsencrypt
+      - nginx_data:/etc/nginx
+
+  redis:
+    image: redis:latest
+    container_name: n8n_redis
+    networks:
+      - n8n-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  n8n-main:
+    image: n8nio/n8n:latest
+    container_name: n8n_main
+    networks:
+      - n8n-network
+    restart: always
+    environment:
+      - DB_TYPE
+      - DB_POSTGRESDB_HOST
+      - DB_POSTGRESDB_PORT
+      - DB_POSTGRESDB_DATABASE
+      - DB_POSTGRESDB_USER
+      - DB_POSTGRESDB_PASSWORD
+      - QUEUE_BULL_REDIS_HOST
+      - QUEUE_BULL_REDIS_PORT
+      - EXECUTIONS_MODE
+      - N8N_ENCRYPTION_KEY
+      - WEBHOOK_URL
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS
+      - NODE_FUNCTION_ALLOW_EXTERNAL
+      - N8N_LOG_LEVEL
+      - N8N_PORT
+      - N8N_PROTOCOL
+      - N8N_HOST
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_storage:/home/node/.n8n
+      - n8n_backup:/backup
+      - n8n_shared:/data/shared      
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  n8n-worker-1:
+    image: n8nio/n8n:latest
+    container_name: n8n_worker_1
+    networks:
+      - n8n-network
+    restart: always
+    command: worker
+    environment:
+      - DB_TYPE
+      - DB_POSTGRESDB_HOST
+      - DB_POSTGRESDB_PORT
+      - DB_POSTGRESDB_DATABASE
+      - DB_POSTGRESDB_USER
+      - DB_POSTGRESDB_PASSWORD
+      - QUEUE_BULL_REDIS_HOST
+      - QUEUE_BULL_REDIS_PORT
+      - EXECUTIONS_MODE
+      - N8N_ENCRYPTION_KEY
+      - WEBHOOK_URL
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS
+      - NODE_FUNCTION_ALLOW_EXTERNAL
+      - N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN
+      - N8N_LOG_LEVEL
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      n8n-main:
+        condition: service_started
+
+  n8n-worker-2:
+    image: n8nio/n8n:latest
+    container_name: n8n_worker_2
+    networks:
+      - n8n-network
+    restart: always
+    command: worker
+    environment:
+      - DB_TYPE
+      - DB_POSTGRESDB_HOST
+      - DB_POSTGRESDB_PORT
+      - DB_POSTGRESDB_DATABASE
+      - DB_POSTGRESDB_USER
+      - DB_POSTGRESDB_PASSWORD
+      - QUEUE_BULL_REDIS_HOST
+      - QUEUE_BULL_REDIS_PORT
+      - EXECUTIONS_MODE
+      - N8N_ENCRYPTION_KEY
+      - WEBHOOK_URL
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS
+      - NODE_FUNCTION_ALLOW_EXTERNAL
+      - N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN
+      - N8N_LOG_LEVEL
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      n8n-main:
+        condition: service_started
+
+  n8n-worker-3:
+    image: n8nio/n8n:latest
+    container_name: n8n_worker_3
+    networks:
+      - n8n-network
+    restart: always
+    command: worker
+    environment:
+      - DB_TYPE
+      - DB_POSTGRESDB_HOST
+      - DB_POSTGRESDB_PORT
+      - DB_POSTGRESDB_DATABASE
+      - DB_POSTGRESDB_USER
+      - DB_POSTGRESDB_PASSWORD
+      - QUEUE_BULL_REDIS_HOST
+      - QUEUE_BULL_REDIS_PORT
+      - EXECUTIONS_MODE
+      - N8N_ENCRYPTION_KEY
+      - WEBHOOK_URL
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS
+      - NODE_FUNCTION_ALLOW_EXTERNAL
+      - N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN
+      - N8N_LOG_LEVEL
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      n8n-main:
+        condition: service_started
